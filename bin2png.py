@@ -39,8 +39,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--cpress",
-        action="store_true",
-        help="Treat input as tiled data (16x4 pixel blocks) and arrange them into the final image.",
+        nargs="?",
+        const="16x4",
+        default=None,
+        help="Treat input as tiled data (default: 16x4). Specify as COLxROW (e.g. 8x8).",
     )
     return parser.parse_args()
 
@@ -77,7 +79,13 @@ def main() -> None:
     raw = input_path.read_bytes()
     pixel_count = len(raw) // bytes_per_pixel
 
-    block_w, block_h = (16, 4) if args.cpress else (1, 1)
+    block_w, block_h = (1, 1)
+    if args.cpress:
+        try:
+            block_w, block_h = map(int, args.cpress.lower().split("x"))
+        except ValueError:
+            raise ValueError(f"Invalid format for --cpress used: {args.cpress}. Expected format like 16x4")
+
     width, height = compute_dimensions(pixel_count, block_w, block_h)
 
     expected_size = width * height * bytes_per_pixel
