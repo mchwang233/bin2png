@@ -3,6 +3,7 @@
 import argparse
 import math
 from pathlib import Path
+from typing import Tuple
 
 from PIL import Image
 
@@ -29,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def compute_dimensions(pixel_count: int) -> tuple[int, int]:
+def compute_dimensions(pixel_count: int) -> Tuple[int, int]:
     if pixel_count <= 0:
         raise ValueError("Input does not contain any pixel data.")
     width = math.ceil(math.sqrt(pixel_count))
