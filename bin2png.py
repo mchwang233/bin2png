@@ -9,8 +9,11 @@ from PIL import Image
 
 
 PIXEL_FORMATS = {
-    "rgb888": ("RGB", 3),
-    "rgb8888": ("RGBA", 4),
+    # format: (PIL mode, raw mode, bytes per pixel)
+    # On Little Endian systems (like x86/ARM memory dumps):
+    # xrgb8888 (0xXXRRGGBB) is stored as BB GG RR XX -> PIL mode matches: BGRX
+    "xrgb8888": ("RGB", "BGRX", 4),
+    "bgrx8888": ("RGB", "XRGB", 4),
 }
 
 
@@ -21,20 +24,35 @@ def parse_args() -> argparse.Namespace:
         "--format",
         required=True,
         choices=PIXEL_FORMATS.keys(),
-        help="Pixel format of the input data (rgb888 or rgb8888)",
+        help="Pixel format of the input data (xrgb8888, bgrx8888)",
     )
     parser.add_argument(
         "--out",
         help="Output PNG path (defaults to input filename with .png extension)",
     )
+    parser.add_argument(
+        "--cpress",
+        action="store_true",
+        help="Treat input as tiled data (16x4 pixel blocks) and arrange them into the final image.",
+    )
     return parser.parse_args()
 
 
-def compute_dimensions(pixel_count: int) -> Tuple[int, int]:
+def compute_dimensions(pixel_count: int, align_w: int = 1, align_h: int = 1) -> Tuple[int, int]:
     if pixel_count <= 0:
         raise ValueError("Input does not contain any pixel data.")
-    width = math.ceil(math.sqrt(pixel_count))
+    
+    # Target a roughly square aspect ratio
+    side = math.sqrt(pixel_count)
+    # Width should be a multiple of align_w
+    width = math.ceil(side / align_w) * align_w
+    if width == 0:
+        width = align_w
+        
+    # Height is derived from width to contain all pixels, aligned to align_h
     height = math.ceil(pixel_count / width)
+    height = math.ceil(height / align_h) * align_h
+    
     return width, height
 
 
@@ -45,10 +63,12 @@ def main() -> None:
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
-    mode, bytes_per_pixel = PIXEL_FORMATS[args.format]
+    mode, raw_mode, bytes_per_pixel = PIXEL_FORMATS[args.format]
     raw = input_path.read_bytes()
     pixel_count = len(raw) // bytes_per_pixel
-    width, height = compute_dimensions(pixel_count)
+
+    block_w, block_h = (16, 4) if args.cpress else (1, 1)
+    width, height = compute_dimensions(pixel_count, block_w, block_h)
 
     expected_size = width * height * bytes_per_pixel
     if len(raw) < expected_size:
@@ -56,7 +76,30 @@ def main() -> None:
     elif len(raw) > expected_size:
         raw = raw[:expected_size]
 
-    image = Image.frombytes(mode, (width, height), raw)
+    if args.cpress:
+        image = Image.new(mode, (width, height))
+        bytes_per_block = block_w * block_h * bytes_per_pixel
+        blocks_per_row = width // block_w
+        
+        # Iterate over raw bytes in chunks of bytes_per_block
+        for i in range(0, len(raw), bytes_per_block):
+            chunk = raw[i : i + bytes_per_block]
+            # Although raw should be padded, ensuring chunk size for safety
+            if len(chunk) < bytes_per_block:
+                chunk += b"\x00" * (bytes_per_block - len(chunk))
+            
+            block_index = i // bytes_per_block
+            bx = (block_index % blocks_per_row) * block_w
+            by = (block_index // blocks_per_row) * block_h
+            
+            # Stop if we exceed image bounds (should not happen if math is correct)
+            if by >= height:
+                break
+                
+            tile = Image.frombytes(mode, (block_w, block_h), chunk, "raw", raw_mode)
+            image.paste(tile, (bx, by))
+    else:
+        image = Image.frombytes(mode, (width, height), raw, "raw", raw_mode)
 
     output_path = Path(args.out) if args.out else input_path.with_suffix(".png")
     image.save(output_path)
