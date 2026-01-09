@@ -13,7 +13,9 @@ PIXEL_FORMATS = {
     # On Little Endian systems (like x86/ARM memory dumps):
     # xrgb8888 (0xXXRRGGBB) is stored as BB GG RR XX -> PIL mode matches: BGRX
     "xrgb8888": ("RGB", "BGRX", 4),
+    # bgrx8888 (0xBBGGRRXX) is stored as XX RR GG BB -> PIL mode matches: XRGB
     "bgrx8888": ("RGB", "XRGB", 4),
+    "argb8888": ("RGBA", "BGRA", 4),
 }
 
 
@@ -24,11 +26,16 @@ def parse_args() -> argparse.Namespace:
         "--format",
         required=True,
         choices=PIXEL_FORMATS.keys(),
-        help="Pixel format of the input data (xrgb8888, bgrx8888)",
+        help="Pixel format of the input data (xrgb8888, bgrx8888, argb8888)",
     )
     parser.add_argument(
         "--out",
         help="Output PNG path (defaults to input filename with .png extension)",
+    )
+    parser.add_argument(
+        "--dir",
+        type=Path,
+        help="Directory to save output files.",
     )
     parser.add_argument(
         "--cpress",
@@ -62,6 +69,9 @@ def main() -> None:
 
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
+
+    if args.dir:
+        args.dir.mkdir(parents=True, exist_ok=True)
 
     mode, raw_mode, bytes_per_pixel = PIXEL_FORMATS[args.format]
     raw = input_path.read_bytes()
@@ -98,10 +108,20 @@ def main() -> None:
                 
             tile = Image.frombytes(mode, (block_w, block_h), chunk, "raw", raw_mode)
             image.paste(tile, (bx, by))
+
+        ex_bin_filename = f"{input_path.stem}_ex.bin"
+        ex_bin_path = (args.dir / ex_bin_filename) if args.dir else input_path.with_name(ex_bin_filename)
+        ex_bin_path.write_bytes(image.tobytes("raw", raw_mode))
+        print(f"Saved Extended Bin: {ex_bin_path}")
     else:
         image = Image.frombytes(mode, (width, height), raw, "raw", raw_mode)
 
-    output_path = Path(args.out) if args.out else input_path.with_suffix(".png")
+    if args.out:
+        output_path = Path(args.out)
+    else:
+        output_filename = input_path.with_suffix(".png").name
+        output_path = (args.dir / output_filename) if args.dir else input_path.with_suffix(".png")
+
     image.save(output_path)
     print(f"Saved PNG: {output_path}")
 
