@@ -5,19 +5,7 @@
 ## 功能
 
 - 将任意二进制文件按字节读取并映射为像素数据
-- 支持 `rgb888` / `rgb8888` 像素格式
 - 输出 PNG 图像，便于可视化或进一步处理
-
-## 环境依赖
-
-- Python 3.8+
-- Pillow
-
-安装依赖：
-
-```
-pip install pillow
-```
 
 ## 使用方式
 
@@ -26,10 +14,10 @@ pip install pillow
 
 ```
 # 示例：把 input.bin 转换为 output.png
-python bin2png.py --bin input.bin --format rgb888 --out output.png
+bin2png input.bin output.png
 ```
 
-> 若未指定 `--out`，将默认生成与输入文件同名的 `.png` 文件。
+> 具体命令参数与可选项以实现代码为准。
 
 ## 输出
 
