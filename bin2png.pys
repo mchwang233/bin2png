@@ -7,9 +7,6 @@ from typing import Tuple
 
 from PIL import Image
 
-# Disable the DecompressionBombError check to verify large images if memory allows
-Image.MAX_IMAGE_PIXELS = None
-
 
 PIXEL_FORMATS = {
     # format: (PIL mode, raw mode, bytes per pixel)
@@ -46,11 +43,6 @@ def parse_args() -> argparse.Namespace:
         const="16x4",
         default=None,
         help="Treat input as tiled data (default: 16x4). Specify as COLxROW (e.g. 8x8).",
-    )
-    parser.add_argument(
-        "--width",
-        type=int,
-        help="Force a specific image width (pixels). Correct for non-square images.",
     )
     return parser.parse_args()
 
@@ -94,16 +86,7 @@ def main() -> None:
         except ValueError:
             raise ValueError(f"Invalid format for --cpress used: {args.cpress}. Expected format like 16x4")
 
-    if args.width:
-        width = args.width
-        if width <= 0:
-            raise ValueError("Width must be positive.")
-        height = math.ceil(pixel_count / width)
-        # If tiling is enabled, ensure height covers full blocks to avoid partial block errors
-        if args.cpress:
-            height = math.ceil(height / block_h) * block_h
-    else:
-        width, height = compute_dimensions(pixel_count, block_w, block_h)
+    width, height = compute_dimensions(pixel_count, block_w, block_h)
 
     expected_size = width * height * bytes_per_pixel
     if len(raw) < expected_size:
